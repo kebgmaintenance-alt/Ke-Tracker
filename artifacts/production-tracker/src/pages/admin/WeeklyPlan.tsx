@@ -76,6 +76,18 @@ function addWeeks(d: Date, weeks: number): Date {
   return result;
 }
 
+function getISOWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+function formatCW(date: Date): string {
+  return `CW${getISOWeekNumber(date)}`;
+}
+
 // ── Excel import helper ─────────────────────────────────────────────────────
 
 interface ExcelRow {
@@ -306,7 +318,7 @@ export default function WeeklyPlan() {
               >
                 <span className="flex items-center gap-1.5 text-sm font-medium">
                   <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                  {formatDateLabel(currentWeekMonday)}
+                  {formatCW(currentWeekMonday)}
                 </span>
                 <span className="text-xs text-muted-foreground font-normal">
                   {start} → {end}
@@ -586,11 +598,11 @@ export default function WeeklyPlan() {
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <span className="inline-block w-2.5 h-2.5 rounded-sm bg-muted-foreground/30" />
-                {prevWeekRange.start} (prev)
+                {formatCW(prevWeekMonday)} (prev)
               </span>
               <span className="flex items-center gap-1">
                 <span className="inline-block w-2.5 h-2.5 rounded-sm bg-primary/70" />
-                {start} (this week)
+                {formatCW(currentWeekMonday)} (this week)
               </span>
             </div>
           </div>
