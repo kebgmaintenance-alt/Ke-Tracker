@@ -79,12 +79,19 @@ function useStepStats(productId: number, stepIds: number[]): Map<number, StepSta
       }
       const totalUnits = stepReports.reduce((s, r) => s + (r.quantityCompleted ?? 0), 0);
       const isStep99 = stepReports[0]?.step?.stepNumber === 99;
-      // For step 99 reports the lineleader logs wall-clock time for a team, so
-      // multiply by operatorCount to get person-minutes before averaging per piece.
-      const totalActual = stepReports.reduce((s, r) => {
-        const t = Number(r.timeWorkedMinutes ?? 0);
-        return s + (isStep99 ? t * Math.max(1, Number(r.operatorCount ?? 1)) : t);
-      }, 0);
+
+      // Wall-clock minutes — what the operator logged; used for efficiency ratio.
+      // calcStepExpected for step 99 already divides by operatorCount so both
+      // expected and actual are in wall-clock minutes and the ratio is correct.
+      const totalActualWallClock = stepReports.reduce((s, r) => s + Number(r.timeWorkedMinutes ?? 0), 0);
+
+      // Person-minutes — wall-clock × operators — used for avgActualSeconds so it
+      // is in the same unit as standardTimeMinutes (person-seconds per piece).
+      const totalActualPersonMin = isStep99
+        ? stepReports.reduce((s, r) =>
+            s + Number(r.timeWorkedMinutes ?? 0) * Math.max(1, Number(r.operatorCount ?? 1)), 0)
+        : totalActualWallClock;
+
       const totalExpected = stepReports.reduce(
         (s, r) => s + calcStepExpected(
           Number(r.step?.standardTimeMinutes ?? 0),
@@ -97,8 +104,8 @@ function useStepStats(productId: number, stepIds: number[]): Map<number, StepSta
       map.set(stepId, {
         totalReports: stepReports.length,
         totalUnits,
-        avgActualSeconds: totalUnits > 0 ? (totalActual / totalUnits) * 60 : null,
-        efficiency: totalActual > 0 ? (totalExpected / totalActual) * 100 : null,
+        avgActualSeconds: totalUnits > 0 ? (totalActualPersonMin / totalUnits) * 60 : null,
+        efficiency: totalActualWallClock > 0 ? (totalExpected / totalActualWallClock) * 100 : null,
       });
     }
     return map;
