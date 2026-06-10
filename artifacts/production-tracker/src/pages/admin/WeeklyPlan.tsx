@@ -59,10 +59,6 @@ function formatDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function formatDateLabel(d: Date): string {
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
 function getWeekRange(monday: Date) {
   const start = new Date(monday);
   const end = new Date(monday);
