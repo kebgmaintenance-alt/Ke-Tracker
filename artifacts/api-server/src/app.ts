@@ -36,8 +36,8 @@ app.use(express.urlencoded({ extended: true }));
 const isProduction = process.env["NODE_ENV"] === "production";
 const isElectron = !!process.env["ELECTRON"];
 
-// Trust the reverse proxy so secure cookies work behind HTTPS proxy
-if (isProduction && !isElectron) {
+// Trust the reverse proxy so secure cookies and rate-limiting work behind HTTPS proxy
+if (!isElectron) {
   app.set("trust proxy", 1);
 }
 

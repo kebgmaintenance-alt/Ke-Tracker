@@ -42,12 +42,16 @@ const changeLimiter = rateLimit({
 // ── Generic password helpers ──────────────────────────────────────────────────
 
 async function getStoredHash(key: string): Promise<string | null> {
-  const row = await db
-    .select()
-    .from(settingsTable)
-    .where(eq(settingsTable.key, key))
-    .limit(1);
-  return row[0]?.value ?? null;
+  try {
+    const row = await db
+      .select()
+      .from(settingsTable)
+      .where(eq(settingsTable.key, key))
+      .limit(1);
+    return row[0]?.value ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function storeHash(key: string, newPassword: string): Promise<void> {
