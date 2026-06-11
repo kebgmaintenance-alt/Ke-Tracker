@@ -534,6 +534,13 @@ export default function Reports() {
     anomalyOpId ? { operatorId: Number(anomalyOpId) } : undefined,
     { query: { enabled: anomalyOpen && !!anomalyOpId } } as Parameters<typeof useListReports>[1],
   );
+
+  // All reports (no operator filter) fetched when the anomaly panel is open,
+  // used to pre-compute which operators actually have anomalies in the period.
+  const anomalyAllReports = useListReports(
+    undefined,
+    { query: { enabled: anomalyOpen } } as Parameters<typeof useListReports>[1],
+  );
   const productSteps = useListSteps(
     Number(filterProductId),
     { query: { enabled: !!filterProductId, queryKey: ["steps", Number(filterProductId)] } },
@@ -590,6 +597,30 @@ export default function Reports() {
     }
     return map;
   }, [dailyTotals, lineleaderIds]);
+
+  // Operators that have at least one anomalous day within the anomaly date range.
+  // Computed from all reports so the dropdown is pre-filtered before selecting anyone.
+  const operatorIdsWithAnomalies = useMemo(() => {
+    const result = new Set<number>();
+    const data = anomalyAllReports.data as WorkReport[] | undefined;
+    if (!data) return result;
+    // sum timeWorkedMinutes per (operatorId, date) within the selected range
+    const dayTotals = new Map<string, number>();
+    for (const r of data) {
+      const date = r.reportDate ?? "";
+      if (anomalyFrom && date < anomalyFrom) continue;
+      if (anomalyTo && date > anomalyTo) continue;
+      if (lineleaderIds.has(r.operatorId)) continue;
+      const key = `${r.operatorId}_${date}`;
+      dayTotals.set(key, (dayTotals.get(key) ?? 0) + Number(r.timeWorkedMinutes ?? 0));
+    }
+    for (const [key, total] of dayTotals) {
+      if (total !== EXPECTED_DAILY_MINUTES) {
+        result.add(Number(key.split("_")[0]));
+      }
+    }
+    return result;
+  }, [anomalyAllReports.data, anomalyFrom, anomalyTo, lineleaderIds]);
 
   // anomaly finder derived rows (for the collapsible panel)
   const anomalyFinderRows = useMemo(() => {
@@ -953,16 +984,22 @@ export default function Reports() {
           <div className="border-t border-border px-4 py-4 space-y-4">
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-3">
-              <Select onValueChange={setAnomalyOpId} value={anomalyOpId}>
+              <Select
+                onValueChange={setAnomalyOpId}
+                value={anomalyOpId}
+                disabled={anomalyAllReports.isLoading}
+              >
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Select operator…" />
+                  <SelectValue placeholder={anomalyAllReports.isLoading ? "Loading…" : "Select operator…"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {operators.data?.filter((op) => !op.isLineleader).map((op) => (
-                    <SelectItem key={op.id} value={String(op.id)}>
-                      {op.name}
-                    </SelectItem>
-                  ))}
+                  {operators.data
+                    ?.filter((op) => !op.isLineleader && operatorIdsWithAnomalies.has(op.id))
+                    .map((op) => (
+                      <SelectItem key={op.id} value={String(op.id)}>
+                        {op.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
 
@@ -988,7 +1025,23 @@ export default function Reports() {
 
             {/* Results */}
             {!anomalyOpId ? (
-              <p className="text-sm text-muted-foreground">Select an operator to check their daily totals.</p>
+              <p className="text-sm text-muted-foreground">
+                {anomalyAllReports.isLoading ? (
+                  "Scanning for anomalies…"
+                ) : operatorIdsWithAnomalies.size === 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                    <span>✓</span>
+                    No operators with anomalies in this period.
+                  </span>
+                ) : (
+                  <>
+                    For the selected period there{" "}
+                    {operatorIdsWithAnomalies.size === 1 ? "is" : "are"}{" "}
+                    <span className="font-semibold text-foreground">{operatorIdsWithAnomalies.size}</span>{" "}
+                    operator{operatorIdsWithAnomalies.size !== 1 ? "s" : ""} with an anomaly — select one above to inspect.
+                  </>
+                )}
+              </p>
             ) : anomalyReports.isLoading ? (
               <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
             ) : anomalyFinderRows.length === 0 ? (
